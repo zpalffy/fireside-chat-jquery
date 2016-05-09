@@ -8,13 +8,21 @@
 		return input;
 	};
 
+	var loadMessages = function(ref, ele, opts) {
+			if (ref.scroll.hasNext() && ele.data('waitingForMessages') <= 0) {
+				ele.data('waitingForMessages', opts.messages);
+				ref.scroll.next(opts.messages);
+			}
+	};
+
 	$.extend({
 		firesideMessage: function(firebase, name, message, extras) {
+			var now = Date.now();
 			firebase.push($.extend({
-				created: new Date().getTime(),
+				created: now,
 				name: name,
 				message: message
-			}, extras));
+			}, extras)).setPriority(0 - now);
 		}
 	});
 
@@ -33,38 +41,47 @@
 
         			return $(t);
     			},
-				newerMessagesOnTop: true
+				messages: 20,
+				scrollOffset: 50
 			}
 
 			return this.each(function() {
 				var $this = $(this);
     			var opts = $.extend({}, defaults, $this.data(), options);
-				var ref = opts.messages ? ref.orderByValue().limitToLast(opts.messages) : firebase;
-				
-				ref.on('child_added', function(snapshot, prevKey) {
-					var msg = snapshot.val();
-					msg.created = opts.formatDate(new Date(msg.created));
-					msg.message = opts.formatMessage(msg.message);
+    			var ref = new Firebase.util.Scroll(firebase, '$priority');
+    			$this.data('waitingForMessages', 0);
 
-					var ele = opts.mergeTemplate(opts.template, opts.fillModel(msg)).attr('id', ID_PREFIX + snapshot.key()).
-						data('message', msg);
-					console.info(message(prevKey).length);
-					if (prevKey) {
-						if (opts.newerMessagesOnTop) {
-							message(prevKey).before(ele);
-						} else {
-							message(prevKey).after(ele);
-						}
-					} else {
-						$this.append(ele);
+				$this.on('scroll', function() {
+					if (this.scrollHeight - $this.scrollTop() <= $this.outerHeight() + opts.scrollOffset) {
+						loadMessages(ref, $this, opts);
 					}
-
-					ele.trigger('firesideMessageAdded');
 				});
-
+				
 				ref.on('child_removed', function(snapshot) {
 					message(snapshot.key()).remove();
 				});
+
+				ref.on("child_added", function(snapshot, prevKey) {
+					$this.data('waitingForMessages', $this.data('waitingForMessages') - 1);
+					var msg = snapshot.val();
+					msg.created = opts.formatDate(new Date(msg.created));
+					msg.message = opts.formatMessage(msg.message);
+					var id = ID_PREFIX + snapshot.key();
+					if (!$('#' + id).length) {
+						var newEle = opts.mergeTemplate(opts.template, opts.fillModel(msg)).attr('id', id).
+							data('message', msg).data('priority', snapshot.getPriority());
+							
+						if (prevKey) {
+							message(prevKey).after(newEle);
+						} else {
+							$this.prepend(newEle);
+						}
+
+						newEle.trigger('firesideMessageAdded');
+					}
+			   	});
+
+				loadMessages(ref, $this, opts);
     		});
     	}
 	});
