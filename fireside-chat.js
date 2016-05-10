@@ -18,27 +18,17 @@
 		return $.parseJSON(sessionStorage['messageIds'] || '[]');
 	}
 
-	var preReplacements = [
-		['(?:https?://)?(?:www\\.)?youtu(?:be\\.com/watch\\?v=|\\.be/)([\\w-]+)', 'yt::$1']
-	];
-
 	var preMerge = function(msg, opts) {
-		$(preReplacements.concat(opts.preReplacements)).each(function(i, rep) {
-			msg = msg.replace(new RegExp(rep[0], 'gi'), rep[1]);
-		});
-		
+		for (var key in opts.replacements) {
+			msg = msg.replace(opts.replacements[key][0], opts.replacements[key][1]);
+		}		
 		return msg;
 	}
 
-	var postReplacements = [
-		['yt', '<iframe width="400" height="225" src="https://www.youtube.com/embed/$1" class="media" frameborder="0" allowfullscreen></iframe>']
-	];
-
 	var postMerge = function(msg, opts) {
-		$(postReplacements.concat(opts.postReplacements)).each(function(i, rep) {
-			msg = msg.replace(new RegExp(rep[0] + '::(\\w+)', 'g'), rep[1]);
-		});
-		
+		for (var key in opts.shortCodes) {
+			msg = msg.replace(new RegExp(key + '::(\\w+)', 'g'), opts.shortCodes[key]);
+		}		
 		return msg;
 	}
 
@@ -86,6 +76,13 @@
     			showMessage: function(ele) {
     				ele.show();
     			},
+    			replacements: {
+    				'youtube': [/(?:https?:\/\/)?(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w-]+)/ig, 'yt::$1'],
+    				'image': [/(https?:\/\/\S*\.(?:jpg|gif|jpeg|png))/ig, '<img src="$1" />']
+    			},
+    			shortCodes: {
+    				'yt': '<iframe width="400" height="225" src="https://www.youtube.com/embed/$1" class="media" frameborder="0" allowfullscreen></iframe>'
+    			},
     			messageClass: 'js-message',
     			deleteMessageSelector: '.delete-message',
     			preReplacements: [],
@@ -96,7 +93,7 @@
 
 			return this.each(function() {
 				var $this = $(this);
-    			var opts = $.extend({}, defaults, $this.data(), options);
+    			var opts = $.extend(true, {}, defaults, $this.data(), options);
     			var ref = new Firebase.util.Scroll(firebase, '$priority');
     			$this.data('waitingForMessages', 0);
 
