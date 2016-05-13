@@ -19,15 +19,33 @@
 	}
 
 	var preMerge = function(msg, opts) {
+		if (!opts.replacements) return msg;
+
 		for (var key in opts.replacements) {
-			msg = msg.replace(opts.replacements[key][0], opts.replacements[key][1]);
-		}		
+			var rep = opts.replacements[key];
+			if (rep.replace) {
+				var replaceValue = rep.replace;
+				if (rep.encode && btoa) {
+					replaceValue = function(match, p1) {
+						return "base64::" + btoa(rep.replace.replace('$1', p1));
+					};
+				}
+
+				msg = msg.replace(rep.search, replaceValue);
+			}
+			
+		}
+
 		return msg;
 	}
 
 	var postMerge = function(msg, opts) {
+		if (!opts.shortCodes) return msg;
+
 		for (var key in opts.shortCodes) {
-			msg = msg.replace(new RegExp(key + '::(\\w+)', 'g'), opts.shortCodes[key]);
+			if (opts.shortCodes[key]) {
+				msg = msg.replace(new RegExp(key + '::([\\w:\\-\\=\\+]+)', 'g'), opts.shortCodes[key]);
+			}
 		}		
 		return msg;
 	}
@@ -77,11 +95,33 @@
     				ele.show();
     			},
     			replacements: {
-    				'youtube': [/(?:https?:\/\/)?(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w-]+)/ig, 'yt::$1'],
-    				'image': [/(https?:\/\/\S*\.(?:jpg|gif|jpeg|png))/ig, '<img src="$1" />']
+    				youtube: {
+    					search: /(?:https?:\/\/)?(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w-]+)/ig,
+    					replace: 'yt::$1'
+    				},
+    				vimeo: {
+    					search: /(?:https?:\/\/)?(?:www\.)?vimeo.com\/(?:\w*\/)*([\w-]+)/ig,
+    					replace: 'vimeo::$1'
+    				},
+    				image: {
+    					search: /(https?:\/\/\S*\.(?:jpg|gif|jpeg|png))/ig,
+    					replace: '<img src="$1" />'
+    				},
+    				audio: {
+    					search: /(https?:\/\/\S*\.(?:mp3|ogg|wav))/ig,
+    					replace: '<audio controls><source src="$1"></audio>',
+    					encode: true
+    				}
     			},
     			shortCodes: {
-    				'yt': '<iframe width="400" height="225" src="https://www.youtube.com/embed/$1" class="media" frameborder="0" allowfullscreen></iframe>'
+    				spotify: '<iframe class="media" src="https://embed.spotify.com/?uri=spotify:$1" width="300" height="380" frameborder="0" allowtransparency="true"></iframe>',
+    				yt: '<iframe width="400" height="225" src="https://www.youtube.com/embed/$1" class="media" frameborder="0" allowfullscreen></iframe>',
+    				vimeo: '<iframe class="media" src="https://player.vimeo.com/video/$1" width="640" height="360" frameborder="0" allowfullscreen></iframe>',
+    				base64: function(match, p1) {
+    					if (p1 && atob) {
+    						return atob(p1);
+    					}
+    				}
     			},
     			messageClass: 'js-message',
     			deleteMessageSelector: '.delete-message',
